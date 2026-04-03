@@ -1,0 +1,15 @@
+.env
+.env.local
+__pycache__/
+*.pyc
+*.pyo
+*.log
+data/
+logs/
+*.json
+!.env.example
+.idea/
+.vscode/
+*.egg-info/
+dist/
+build/
