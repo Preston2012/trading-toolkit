@@ -1,11 +1,23 @@
 # Trading Toolkit
 
-> Python automation suite for managing algorithmic trading bots, options scanning, and VPS infrastructure.
-> Built by one person. 3 trading bots, 14 background services, real-time Telegram alerts.
+A production automation system running 3 long-lived agents, 14 background services, and multiple real-time scanner pipelines on a Hetzner VPS. Demonstrates service orchestration (systemd), container management (Docker/Freqtrade), alert delivery (Telegram), health monitoring, and automated regime-based control logic.
+
+Built for trading research and market analysis, but the engineering patterns (persistent agents, real-time data processing, automated decision pipelines, multi-service coordination) transfer to any domain.
 
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB)]()
 [![Docker](https://img.shields.io/badge/Docker-Freqtrade-2496ED)]()
 [![Hetzner](https://img.shields.io/badge/VPS-Hetzner-D50C2D)]()
+
+---
+
+## Engineering Patterns Demonstrated
+
+- **Long-running agent management:** 3 containerized bots with health checks, auto-restart, and performance tracking
+- **Service orchestration:** 14 systemd services with dependency management and coordinated startup/shutdown
+- **Real-time data pipelines:** Options scanner processing 12 ETFs with RSI/EMA analysis on 5-minute candles
+- **Alert and notification system:** Telegram bot integration with noise reduction, threshold filtering, and deduplication
+- **Regime detection and automated control:** Market regime classifier that adjusts bot behavior based on conditions
+- **Infrastructure as code:** VPS provisioning, Docker configuration, and deployment scripts
 
 ---
 
@@ -59,7 +71,7 @@ The core of this toolkit. Thesis-driven options scanner that:
 - Runs **RSI 14, EMA 20/50 trend detection**, support/resistance from 20-day range, and 30-day historical volatility via yfinance
 - Filters for **cheap OTM options** ($0.02-$1.50 premium, 3-15% OTM depending on ticker beta)
 - **Grades contracts A through D** based on open interest, volume, premium sweetness, days to expiry, and bid-ask spread quality
-- **Filters wide spreads** -- contracts with >50% bid-ask spread are rejected, >30% spread gets a grading penalty
+- **Filters wide spreads**: contracts with >50% bid-ask spread are rejected, >30% spread gets a grading penalty
 - Calculates **position sizes** with 3% max risk per play and automatic exit ladders:
   - 8+ contracts: 4 tranches (recover basis / lock profit / let run / moon bag)
   - 4-7 contracts: 3 tranches
@@ -68,7 +80,7 @@ The core of this toolkit. Thesis-driven options scanner that:
   - Capped at 20 contracts to prevent illiquid penny-option positions
 - Scans **Finnhub news** for actionable headlines with fuzzy dedup (normalizes headlines to collapse near-duplicates from different sources)
 - Sends **HTML-formatted Telegram alerts** with full technical context
-- **Market hours aware** -- option scans only run during US market hours (9:30 AM - 4:00 PM ET). News scans run 24/7.
+- **Market hours aware**: option scans only run during US market hours (9:30 AM - 4:00 PM ET). News scans run 24/7.
 
 ### Scanner Schedule
 
@@ -151,9 +163,10 @@ See `.env.example` for all required variables. Never commit real credentials.
 
 ---
 
-## Related
+## Other Projects
+
+This is one of several repositories. See the full portfolio at [github.com/Preston2012](https://github.com/Preston2012) or [baseline.marketing/built](https://baseline.marketing/built).
 
 - **[baseline-showcase](https://github.com/Preston2012/baseline-showcase)** - Political intelligence platform (Flutter/Supabase/4 AI providers)
 - **[ai-council](https://github.com/Preston2012/ai-council)** - Multi-model AI orchestration methodology
-- **Portfolio:** [baseline.marketing/built](https://baseline.marketing/built)
-- **Contact:** Droiddna2013@gmail.com
+- **Contact:** preston@baseline.marketing
