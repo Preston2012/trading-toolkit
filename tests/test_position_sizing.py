@@ -79,11 +79,15 @@ class TestBuildLadder:
         assert total == 2
 
     def test_single_contract_ladder(self) -> None:
-        """Single contract should split into 1 + 0."""
+        """Single contract should produce exactly 1 tranche."""
         ladder = build_ladder(1)
-        assert len(ladder) == 2
+        assert len(ladder) == 1
         assert ladder[0]["contracts"] == 1
-        assert ladder[1]["contracts"] == 0
+
+    def test_zero_contracts_empty_ladder(self) -> None:
+        """Zero contracts should produce empty ladder."""
+        ladder = build_ladder(0)
+        assert len(ladder) == 0
 
     def test_ladder_targets_present(self) -> None:
         """Each tranche should have a target description."""
@@ -91,3 +95,28 @@ class TestBuildLadder:
         for tranche in ladder:
             assert "target" in tranche
             assert len(tranche["target"]) > 0
+
+    def test_contract_cap_penny_options(self) -> None:
+        """Penny options ($0.01) should cap at 20 contracts."""
+        result = calc_position(
+            premium=0.01, price=50.0, strike=55.0,
+            days=45, trade_fund=3000.0, side="call",
+        )
+        assert result["contracts"] == 20
+
+    def test_zero_premium_safe_fallback(self) -> None:
+        """Zero premium should return safe 1-contract fallback, not crash."""
+        result = calc_position(
+            premium=0.0, price=50.0, strike=55.0,
+            days=45, trade_fund=3000.0, side="call",
+        )
+        assert result["contracts"] == 1
+        assert result["total_cost"] == 0.0
+
+    def test_negative_premium_safe_fallback(self) -> None:
+        """Negative premium (data error) should return safe fallback."""
+        result = calc_position(
+            premium=-0.50, price=50.0, strike=55.0,
+            days=45, trade_fund=3000.0, side="call",
+        )
+        assert result["contracts"] == 1

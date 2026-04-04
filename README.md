@@ -34,7 +34,7 @@ trading-toolkit/
         technicals.py        # RSI 14, EMA 20/50, support/resistance, hist. volatility
         position_sizing.py   # 3% max risk sizing, staged exit ladder generation
         grading.py           # Option scoring: OI, volume, premium, DTE -> A/B/C/D
-        news_scanner.py      # Finnhub headline scanner with hash-based dedup
+        news_scanner.py      # Finnhub headline scanner with fuzzy dedup
     scripts/
         scan_options.py      # Main scanner entry point (imports core/, runs on schedule)
         check_bots.py        # Health check for 3 Freqtrade Docker containers
@@ -43,9 +43,10 @@ trading-toolkit/
         quick_trades.py      # Pull recent trades from Freqtrade REST APIs
         check_scanner.py     # Check scanner logs and scan result data
     tests/
-        test_technicals.py   # RSI, EMA, volatility calculations
-        test_position_sizing.py  # Position sizing and exit ladder logic
-        test_grading.py      # Option grading and scoring thresholds
+        test_technicals.py       # RSI, EMA, volatility calculations
+        test_position_sizing.py  # Position sizing, exit ladders, edge cases
+        test_grading.py          # Grading thresholds and spread penalties
+        test_news_scanner.py     # Fuzzy headline dedup and normalization
 ```
 
 ---
@@ -57,19 +58,22 @@ The core of this toolkit. Thesis-driven options scanner that:
 - Maintains **macro thesis maps for 12 ETFs** (XLE, JETS, TLT, XBI, KRE, GDX, IBIT, SMH, XLF, SPY, XOP, ITA) with call/put theses, catalysts, and per-ticker filtering parameters
 - Runs **RSI 14, EMA 20/50 trend detection**, support/resistance from 20-day range, and 30-day historical volatility via yfinance
 - Filters for **cheap OTM options** ($0.02-$1.50 premium, 3-15% OTM depending on ticker beta)
-- **Grades contracts A through D** based on open interest, volume, premium sweetness, and days to expiry
+- **Grades contracts A through D** based on open interest, volume, premium sweetness, days to expiry, and bid-ask spread quality
+- **Filters wide spreads** -- contracts with >50% bid-ask spread are rejected, >30% spread gets a grading penalty
 - Calculates **position sizes** with 3% max risk per play and automatic exit ladders:
   - 8+ contracts: 4 tranches (recover basis / lock profit / let run / moon bag)
   - 4-7 contracts: 3 tranches
   - Under 4: 2 tranches
   - Kill price at 50% premium loss
-- Scans **Finnhub news** for actionable headlines with hash-based dedup (no repeat alerts)
+  - Capped at 20 contracts to prevent illiquid penny-option positions
+- Scans **Finnhub news** for actionable headlines with fuzzy dedup (normalizes headlines to collapse near-duplicates from different sources)
 - Sends **HTML-formatted Telegram alerts** with full technical context
+- **Market hours aware** -- option scans only run during US market hours (9:30 AM - 4:00 PM ET). News scans run 24/7.
 
 ### Scanner Schedule
 
-- Full options scan: every 2 hours
-- News headline scan: every 15 minutes
+- Full options scan: every 2 hours (market hours only)
+- News headline scan: every 15 minutes (24/7)
 
 ---
 
