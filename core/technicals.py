@@ -36,9 +36,13 @@ def compute_rsi(close: pd.Series, period: int = 14) -> float:
     delta = close.diff()
     gain = delta.where(delta > 0, 0.0).rolling(period).mean()
     loss = (-delta.where(delta < 0, 0.0)).rolling(period).mean()
-    rs = gain / loss
+    last_gain = float(gain.iloc[-1])
+    last_loss = float(loss.iloc[-1])
+    if last_loss == 0:
+        return 100.0 if last_gain > 0 else 50.0
+    rs = last_gain / last_loss
     rsi = 100 - (100 / (1 + rs))
-    return round(float(rsi.iloc[-1]), 1)
+    return round(rsi, 1)
 
 
 def compute_ema(close: pd.Series, span: int) -> float:
