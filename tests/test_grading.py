@@ -39,56 +39,31 @@ class TestGrade:
         assert grade_within == "A"
         assert grade_beyond == "A"  # 100 - 30 = 70, still >= 70
 
-    def test_grade_b_moderate_setup(self) -> None:
-        """Moderate OI and volume with good premium and DTE = Grade B."""
+    def test_grade_a_moderate_liquidity(self) -> None:
+        """Moderate OI and volume still scores A with ideal premium and DTE."""
         result = grade(
             premium=0.10, volume=60, oi=120,
             days=45, otm_pct=5.0, max_otm=15.0,
         )
-        # OI>100=20, vol>50=20, premium 0.05-0.50=25, DTE 30-60=25 = 90 -> A
-        # Actually this is still A. Let me adjust.
+        # OI>100=20, vol>50=20, premium 0.05-0.50=25, DTE 30-60=25 = 90
         assert result == "A"
 
     def test_grade_b_actual(self) -> None:
-        """Setup that scores 55-69 should be Grade B."""
-        result = grade(
-            premium=0.10, volume=25, oi=60,
-            days=45, otm_pct=5.0, max_otm=15.0,
-        )
-        # OI>50=15, vol>20=15, premium=25, DTE=25 = 80 -> A
-        # Need to reduce more. Use expensive premium and far DTE.
-        result = grade(
-            premium=1.20, volume=25, oi=60,
-            days=100, otm_pct=5.0, max_otm=15.0,
-        )
-        # OI>50=15, vol>20=15, premium 1.00-1.50=15, DTE>90=0 = 45 -> C
-        # Adjust: 60<DTE<=90=20
-        result = grade(
-            premium=0.80, volume=25, oi=60,
-            days=75, otm_pct=5.0, max_otm=15.0,
-        )
-        # OI>50=15, vol>20=15, premium 0.50-1.00=20, DTE 60-90=20 = 70 -> A
-        # Tighter:
+        """Score of 60 (OI=30, vol=25, premium=$1.20, DTE=75) should be Grade B."""
         result = grade(
             premium=1.20, volume=25, oi=30,
             days=75, otm_pct=5.0, max_otm=15.0,
         )
-        # OI>20=10, vol>20=15, premium 1.00-1.50=15, DTE 60-90=20 = 60 -> B
+        # OI>20=10, vol>20=15, premium 1.00-1.50=15, DTE 60-90=20 = 60
         assert result == "B"
 
     def test_grade_c_weak_setup(self) -> None:
-        """Weak but not terrible setup should be Grade C."""
-        result = grade(
-            premium=1.20, volume=25, oi=30,
-            days=28, otm_pct=5.0, max_otm=15.0,
-        )
-        # OI>20=10, vol>20=15, premium 1.00-1.50=15, DTE 25-30=15 = 55 -> B
-        # Need less:
+        """Score of 40 (low volume, cheap OI, short DTE) should be Grade C."""
         result = grade(
             premium=1.20, volume=10, oi=30,
             days=28, otm_pct=5.0, max_otm=15.0,
         )
-        # OI>20=10, vol<20=0, premium=15, DTE=15 = 40 -> C
+        # OI>20=10, vol<20=0, premium 1.00-1.50=15, DTE 25-30=15 = 40
         assert result == "C"
 
     def test_low_oi_penalty(self) -> None:

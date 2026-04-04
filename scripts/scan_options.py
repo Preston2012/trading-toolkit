@@ -39,17 +39,29 @@ logger = logging.getLogger(__name__)
 # Grade sort order (safe dict lookup, no crash on unexpected grades)
 GRADE_ORDER: dict[str, int] = {"A": 0, "B": 1, "C": 2, "D": 3}
 
-# US Eastern Time offset (UTC-5, or UTC-4 during DST)
-ET_OFFSET = timezone(timedelta(hours=-4))
-
-
 def is_market_hours() -> bool:
     """Check if US equity markets are currently open.
 
     Returns True during 9:30 AM - 4:00 PM ET, Monday through Friday.
-    News scans bypass this check since news breaks anytime.
+    Handles EST/EDT transitions using a simple DST check for the
+    US Eastern timezone (UTC-5 standard, UTC-4 daylight).
     """
-    now_et = datetime.now(ET_OFFSET)
+    now_utc = datetime.now(timezone.utc)
+    # US DST: second Sunday of March to first Sunday of November
+    month = now_utc.month
+    is_dst = 3 < month < 11
+    if month == 3:
+        # DST starts second Sunday of March at 2 AM
+        second_sun = 14 - (datetime(now_utc.year, 3, 1).weekday() + 1) % 7
+        is_dst = now_utc.day >= second_sun
+    elif month == 11:
+        # DST ends first Sunday of November at 2 AM
+        first_sun = 7 - (datetime(now_utc.year, 11, 1).weekday() + 1) % 7
+        is_dst = now_utc.day < first_sun
+
+    et_offset = timezone(timedelta(hours=-4 if is_dst else -5))
+    now_et = now_utc.astimezone(et_offset)
+
     if now_et.weekday() >= 5:
         return False
     market_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)

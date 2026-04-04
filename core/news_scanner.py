@@ -101,7 +101,8 @@ def scan_news(
     """Scan Finnhub news for actionable headlines.
 
     Fetches general news, filters by source keywords, matches against
-    the trade map, and deduplicates using MD5 hashes.
+    the trade map, and deduplicates using normalized MD5 hashes
+    (near-duplicate headlines from different sources are collapsed).
 
     Args:
         finnhub_key: Finnhub API key.
