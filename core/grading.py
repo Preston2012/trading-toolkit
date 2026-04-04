@@ -1,8 +1,8 @@
 """Option contract grading and scoring.
 
 Scores option contracts on open interest, volume, premium,
-and days to expiry. Applies penalties for poor liquidity
-or excessive OTM distance.
+days to expiry, and bid-ask spread quality. Applies penalties
+for poor liquidity, excessive OTM distance, or wide spreads.
 """
 
 
@@ -13,6 +13,7 @@ def grade(
     days: int,
     otm_pct: float,
     max_otm: float = 20.0,
+    spread_pct: float | None = None,
 ) -> str:
     """Grade an option contract from A to D.
 
@@ -21,7 +22,8 @@ def grade(
         - Volume: 15-25 points
         - Premium sweetness: 15-25 points
         - Days to expiry: 15-25 points
-        - Penalties for low OI (<10), low volume (<5), or OTM > max_otm
+        - Penalties for low OI (<10), low volume (<5), OTM > max_otm,
+          or wide bid-ask spread (>30%)
 
     Args:
         premium: Option premium per share.
@@ -30,6 +32,7 @@ def grade(
         days: Days to expiration.
         otm_pct: Percentage out of the money.
         max_otm: Maximum acceptable OTM percentage.
+        spread_pct: Bid-ask spread as percentage of mid price (optional).
 
     Returns:
         Letter grade: "A" (>=70), "B" (>=55), "C" (>=40), or "D".
@@ -77,6 +80,13 @@ def grade(
         score -= 15
     if otm_pct > max_otm:
         score -= 30
+
+    # Bid-ask spread penalty (wide spread = hidden slippage)
+    if spread_pct is not None:
+        if spread_pct > 50:
+            score -= 25
+        elif spread_pct > 30:
+            score -= 15
 
     if score >= 70:
         return "A"

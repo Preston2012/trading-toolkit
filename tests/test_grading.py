@@ -118,3 +118,49 @@ class TestGrade:
             days=45, otm_pct=25.0, max_otm=15.0,
         )
         assert result == "A"  # exactly 70
+
+    def test_spread_penalty_wide(self) -> None:
+        """Spread > 30% should apply -15 penalty."""
+        # Without spread: 25+25+25+25 = 100 -> A
+        # With 35% spread: 100 - 15 = 85 -> A (still)
+        result = grade(
+            premium=0.10, volume=300, oi=600,
+            days=45, otm_pct=5.0, max_otm=15.0,
+            spread_pct=35.0,
+        )
+        assert result == "A"  # 85 still A
+
+        # OTM penalty + spread penalty: 100 - 30 - 15 = 55 -> B
+        result = grade(
+            premium=0.10, volume=300, oi=600,
+            days=45, otm_pct=25.0, max_otm=15.0,
+            spread_pct=35.0,
+        )
+        assert result == "B"
+
+    def test_spread_penalty_extreme(self) -> None:
+        """Spread > 50% should apply -25 penalty."""
+        # 100 - 25 = 75 -> A
+        result_extreme = grade(
+            premium=0.10, volume=300, oi=600,
+            days=45, otm_pct=5.0, max_otm=15.0,
+            spread_pct=55.0,
+        )
+        assert result_extreme == "A"
+
+        # Combined with OTM: 100 - 30 - 25 = 45 -> C
+        result_combined = grade(
+            premium=0.10, volume=300, oi=600,
+            days=45, otm_pct=25.0, max_otm=15.0,
+            spread_pct=55.0,
+        )
+        assert result_combined == "C"
+
+    def test_no_spread_no_penalty(self) -> None:
+        """None spread should not affect score (backward compatible)."""
+        result = grade(
+            premium=0.10, volume=300, oi=600,
+            days=45, otm_pct=5.0, max_otm=15.0,
+            spread_pct=None,
+        )
+        assert result == "A"

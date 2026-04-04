@@ -1,20 +1,34 @@
-"""News headline scanner with hash-based deduplication.
+"""News headline scanner with fuzzy deduplication.
 
 Scans Finnhub general news for relevant headlines, matches them
-against a keyword-to-trade map, and deduplicates using MD5 hashes
-persisted to a JSON file.
+against a keyword-to-trade map, and deduplicates using normalized
+MD5 hashes. Normalization strips filler words and sorts tokens so
+near-duplicate headlines from different sources collapse into one.
 """
 
 import hashlib
 import json
 import logging
 import os
+import re
 from datetime import datetime
 from typing import TypedDict
 
 logger = logging.getLogger(__name__)
 
 MAX_SEEN_ENTRIES = 500
+
+# Common filler words stripped before hashing to collapse near-duplicates
+FILLER_WORDS = frozenset({
+    "the", "a", "an", "on", "in", "to", "for", "of", "and", "is", "are",
+    "was", "has", "have", "will", "said", "says", "say", "that", "with",
+    "from", "by", "at", "its", "his", "her", "their", "this", "be", "been",
+    "but", "not", "or", "as", "it", "he", "she", "they", "we", "our", "may",
+    "could", "would", "should", "also", "about", "over", "into", "after",
+    "new", "report", "reports", "sources", "according", "just", "now",
+    "more", "up", "out", "all", "an", "being", "if", "than", "no", "do",
+    "does", "did", "get", "got", "can", "some", "very", "most", "per",
+})
 
 
 class NewsSignal(TypedDict):
@@ -24,6 +38,26 @@ class NewsSignal(TypedDict):
     play: str
     logic: str
     hash: str
+
+
+def normalize_headline(headline: str) -> str:
+    """Normalize a headline for fuzzy dedup hashing.
+
+    Strips punctuation, removes filler words, and sorts tokens
+    alphabetically. This way "Trump threatens Iran sanctions" and
+    "Trump threatens sanctions on Iran" produce the same output.
+
+    Args:
+        headline: Raw headline text.
+
+    Returns:
+        Normalized string of sorted, meaningful tokens.
+    """
+    text = headline.lower()
+    text = re.sub(r"[^a-z0-9\s]", "", text)
+    tokens = [w for w in text.split() if w not in FILLER_WORDS and len(w) > 1]
+    tokens.sort()
+    return " ".join(tokens)
 
 
 def get_seen(seen_file: str) -> dict[str, str]:
@@ -92,7 +126,8 @@ def scan_news(
 
         for article in news[:50]:
             headline = article.get("headline", "")
-            h_hash = hashlib.md5(headline.encode()).hexdigest()[:12]
+            normalized = normalize_headline(headline)
+            h_hash = hashlib.md5(normalized.encode()).hexdigest()[:12]
 
             if h_hash in seen:
                 continue

@@ -3,6 +3,7 @@
 Scans 12 ETFs for cheap OTM options matching macro theses,
 applies technical analysis and grading, calculates position
 sizes with exit ladders, and sends Telegram alerts.
+Skips scans outside US market hours to avoid stale data.
 """
 
 import json
@@ -10,7 +11,7 @@ import logging
 import os
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -35,13 +36,52 @@ from core.telegram import send_tg
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
+# Grade sort order (safe dict lookup, no crash on unexpected grades)
+GRADE_ORDER: dict[str, int] = {"A": 0, "B": 1, "C": 2, "D": 3}
+
+# US Eastern Time offset (UTC-5, or UTC-4 during DST)
+ET_OFFSET = timezone(timedelta(hours=-4))
+
+
+def is_market_hours() -> bool:
+    """Check if US equity markets are currently open.
+
+    Returns True during 9:30 AM - 4:00 PM ET, Monday through Friday.
+    News scans bypass this check since news breaks anytime.
+    """
+    now_et = datetime.now(ET_OFFSET)
+    if now_et.weekday() >= 5:
+        return False
+    market_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
+    market_close = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
+    return market_open <= now_et <= market_close
+
+
+def compute_spread_pct(bid: float, ask: float) -> float | None:
+    """Calculate bid-ask spread as percentage of mid price.
+
+    Args:
+        bid: Bid price.
+        ask: Ask price.
+
+    Returns:
+        Spread percentage, or None if data is invalid.
+    """
+    if bid <= 0 or ask <= 0 or ask < bid:
+        return None
+    mid = (bid + ask) / 2
+    if mid <= 0:
+        return None
+    return round((ask - bid) / mid * 100, 1)
+
 
 def scan_options() -> list[dict]:
     """Scan all ETFs for options matching thesis criteria.
 
     Iterates THESIS_MAP, pulls option chains via yfinance, filters
     for cheap OTM contracts within thesis parameters, grades each
-    contract, and calculates position sizing.
+    contract (including bid-ask spread quality), and calculates
+    position sizing.
 
     Returns:
         List of option results sorted by grade (A first).
@@ -100,7 +140,19 @@ def scan_options() -> list[dict]:
                         else:
                             otm_pct = round((price - row["strike"]) / price * 100, 1)
 
-                        g = grade(row["lastPrice"], vol, oi_val, days, otm_pct, max_otm)
+                        # Bid-ask spread quality check
+                        bid = float(row.get("bid", 0) or 0)
+                        ask = float(row.get("ask", 0) or 0)
+                        spread_pct = compute_spread_pct(bid, ask)
+
+                        # Filter out contracts with extreme spreads (>50% of mid)
+                        if spread_pct is not None and spread_pct > 50:
+                            continue
+
+                        g = grade(
+                            row["lastPrice"], vol, oi_val, days,
+                            otm_pct, max_otm, spread_pct,
+                        )
                         if g == "D":
                             continue
 
@@ -121,6 +173,7 @@ def scan_options() -> list[dict]:
                             "oi": oi_val,
                             "iv": iv_val,
                             "otm_pct": otm_pct,
+                            "spread_pct": spread_pct,
                             "grade": g,
                             "thesis": info[thesis_key],
                             "catalyst": info["catalyst"],
@@ -131,7 +184,7 @@ def scan_options() -> list[dict]:
         except Exception as exc:
             logger.warning("Scan error %s: %s", ticker, exc)
 
-    results.sort(key=lambda x: ("A", "B", "C").index(x["grade"]))
+    results.sort(key=lambda x: GRADE_ORDER.get(x["grade"], 99))
     return results
 
 
@@ -152,10 +205,12 @@ def fmt_alert(r: dict) -> str:
     rsi = tech.get("rsi", "?")
     hi = tech.get("hi20", "?")
     lo = tech.get("lo20", "?")
+    spread = r.get("spread_pct")
+    spread_str = f" Sprd:{spread}%" if spread is not None else ""
 
     msg = f"<b>[{r['grade']}] {r['ticker']}</b> ${r['price']} | ${r['strike']}{s}"
     msg += f"\n  Exp: {r['expiry']} ({r['days']}d) @ ${r['premium']:.2f}"
-    msg += f"\n  OTM:{r['otm_pct']}% | Vol:{r['volume']} OI:{r['oi']} IV:{r['iv']}%"
+    msg += f"\n  OTM:{r['otm_pct']}% | Vol:{r['volume']} OI:{r['oi']} IV:{r['iv']}%{spread_str}"
     msg += f"\n  Trend:{trend} RSI:{rsi} | 20d Range:${lo}-${hi}"
     msg += f"\n  <b>Size:</b> {pos.get('contracts', 1)}x (${pos.get('total_cost', 0)}) = {pos.get('pct_of_fund', 0)}% of fund"
 
@@ -176,44 +231,53 @@ def _send(msg: str) -> None:
 
 
 def run_scan() -> None:
-    """Execute a full scan cycle: options + news + alerts."""
+    """Execute a full scan cycle: options + news + alerts.
+
+    Skips option scanning outside market hours. News scanning
+    runs regardless since news breaks anytime.
+    """
     ts = datetime.now().strftime("%H:%M")
-    logger.info("Scan started at %s", ts)
 
-    results = scan_options()
+    # Options scan only during market hours
+    results: list[dict] = []
+    if is_market_hours():
+        logger.info("Options scan started at %s", ts)
+        results = scan_options()
 
-    os.makedirs(os.path.dirname(SCAN_RESULTS_FILE), exist_ok=True)
-    with open(SCAN_RESULTS_FILE, "w") as f:
-        json.dump(results, f, indent=2, default=str)
+        os.makedirs(os.path.dirname(SCAN_RESULTS_FILE), exist_ok=True)
+        with open(SCAN_RESULTS_FILE, "w") as f:
+            json.dump(results, f, indent=2, default=str)
 
-    # Grade A calls
-    a_calls = [r for r in results if r["grade"] == "A" and r["side"] == "CALL"]
-    if a_calls:
-        msg = f"<b>TOP CALLS (Grade A) {ts}</b>\n"
-        for r in a_calls[:5]:
-            msg += "\n" + fmt_alert(r) + "\n"
-        _send(msg)
+        # Grade A calls
+        a_calls = [r for r in results if r["grade"] == "A" and r["side"] == "CALL"]
+        if a_calls:
+            msg = f"<b>TOP CALLS (Grade A) {ts}</b>\n"
+            for r in a_calls[:5]:
+                msg += "\n" + fmt_alert(r) + "\n"
+            _send(msg)
 
-    # Grade A puts
-    a_puts = [r for r in results if r["grade"] == "A" and r["side"] == "PUT"]
-    if a_puts:
-        msg = f"<b>TOP PUTS (Grade A) {ts}</b>\n"
-        for r in a_puts[:5]:
-            msg += "\n" + fmt_alert(r) + "\n"
-        _send(msg)
+        # Grade A puts
+        a_puts = [r for r in results if r["grade"] == "A" and r["side"] == "PUT"]
+        if a_puts:
+            msg = f"<b>TOP PUTS (Grade A) {ts}</b>\n"
+            for r in a_puts[:5]:
+                msg += "\n" + fmt_alert(r) + "\n"
+            _send(msg)
 
-    # Grade B watchlist
-    b_all = [r for r in results if r["grade"] == "B"]
-    if b_all:
-        msg = f"<b>WATCHLIST (Grade B) {ts}</b>\n"
-        for r in b_all[:6]:
-            s = "C" if r["side"] == "CALL" else "P"
-            pos = r.get("pos", {})
-            msg += f"\n<b>{r['ticker']}</b> ${r['strike']}{s} {r['expiry']} ({r['days']}d) @ ${r['premium']:.2f}"
-            msg += f"\n  Size:{pos.get('contracts', 1)}x | <i>{r['thesis'][:60]}</i>\n"
-        _send(msg)
+        # Grade B watchlist
+        b_all = [r for r in results if r["grade"] == "B"]
+        if b_all:
+            msg = f"<b>WATCHLIST (Grade B) {ts}</b>\n"
+            for r in b_all[:6]:
+                s = "C" if r["side"] == "CALL" else "P"
+                pos = r.get("pos", {})
+                msg += f"\n<b>{r['ticker']}</b> ${r['strike']}{s} {r['expiry']} ({r['days']}d) @ ${r['premium']:.2f}"
+                msg += f"\n  Size:{pos.get('contracts', 1)}x | <i>{r['thesis'][:60]}</i>\n"
+            _send(msg)
+    else:
+        logger.info("Outside market hours at %s, skipping options scan", ts)
 
-    # News signals
+    # News signals run 24/7
     news = scan_news(FINNHUB_KEY, SEEN_HEADLINES_FILE, TRADE_MAP, NEWS_KEYWORDS)
     if news:
         msg = "<b>FRESH NEWS SIGNAL</b>\n"
@@ -223,7 +287,7 @@ def run_scan() -> None:
             msg += f"\n  Logic: {sig['logic']}\n"
         _send(msg)
 
-    if not results and not news:
+    if is_market_hours() and not results and not news:
         _send(f"<b>OPTIONS SCAN {ts}</b>\nNo quality setups this cycle.")
 
     c_cnt = len([r for r in results if r["side"] == "CALL"])
