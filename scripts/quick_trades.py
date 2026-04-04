@@ -1,13 +1,43 @@
-# Quick Trade Viewer
-# Pulls recent trades from 3 Freqtrade bot APIs
-# github.com/Preston2012/trading-toolkit
+"""Quick trade viewer.
+
+Pulls recent trades from Freqtrade bot REST APIs.
+No SSH required -- connects directly to bot API endpoints.
+"""
 
 import os
-import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 import requests
-for name, port in [("Sniper",8080),("Hunter",8081),("Scout",8082)]:
-    r = requests.get(f"http://" + VPS_HOST + ":{port}/api/v1/trades", auth=(os.environ["FT_USER"], os.environ["FT_PASS"]), params={"limit":5})
-    data = r.json()
-    print(f"{name}: {data.get('trades_count',0)} trades total, {len(data.get('trades',[]))} shown")
-    for t in data.get("trades",[]):
-        print(f"  {t.get('pair')} | {t.get('open_date')} | profit: {t.get('close_profit','open')}")
+
+from config.settings import BOTS, FT_PASS, FT_USER, VPS_HOST
+
+
+def main() -> None:
+    """Fetch and display recent trades from all bots."""
+    for bot in BOTS:
+        url = f"http://{VPS_HOST}:{bot['port']}/api/v1/trades"
+        try:
+            resp = requests.get(
+                url,
+                auth=(FT_USER, FT_PASS),
+                params={"limit": 5},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            total = data.get("trades_count", 0)
+            trades = data.get("trades", [])
+            print(f"{bot['name']}: {total} trades total, {len(trades)} shown")
+            for t in trades:
+                pair = t.get("pair", "?")
+                open_date = t.get("open_date", "?")
+                profit = t.get("close_profit", "open")
+                print(f"  {pair} | {open_date} | profit: {profit}")
+        except requests.RequestException as exc:
+            print(f"{bot['name']}: Error - {exc}")
+
+
+if __name__ == "__main__":
+    main()

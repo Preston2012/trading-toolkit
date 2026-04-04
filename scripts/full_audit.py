@@ -1,34 +1,40 @@
-# VPS Full System Audit
-# Audits all services, scripts, data dirs, cron, and memory on Hetzner VPS
-# github.com/Preston2012/trading-toolkit
+"""VPS full system audit.
+
+Audits all services, scripts, data directories, cron jobs,
+and memory on the trading VPS.
+"""
 
 import os
-import os
-import paramiko
-ssh = paramiko.SSHClient()
-ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-ssh.connect(os.environ["VPS_HOST"], username=os.environ.get("VPS_USER", "root"), password=os.environ["VPS_PASSWORD"])
-def run(cmd):
-    stdin, stdout, stderr = ssh.exec_command(cmd, timeout=30)
-    return stdout.read().decode() + stderr.read().decode()
-print("=== SCRIPTS ===")
-print(run("ls -la /root/scripts/"))
-print("=== TRADING-INFRA ===")
-print(run("ls -la /root/trading-infra/ 2>/dev/null || echo 'NO DIR'"))
-print("=== DATA DIR ===")
-print(run("ls -la /root/data/ 2>/dev/null || echo 'NO DIR'"))
-print("=== DASHBOARD ===")
-print(run("ls -la /root/dashboard/ 2>/dev/null || echo 'NO DIR'"))
-print("=== SERVICES ===")
-print(run("systemctl list-units --type=service --state=active | grep -E 'trading|poly|replay|exec|ibit|dash'"))
-print("=== TMUX ===")
-print(run("tmux list-sessions 2>&1"))
-print("=== CRON ===")
-print(run("crontab -l"))
-print("=== KRAKEN DATA ===")
-print(run("ls -lh /root/freqtrade-sniper/user_data/data/kraken/ 2>/dev/null || echo 'NO DATA'"))
-print("=== ENV FILE ===")
-print(run("cat /root/.env 2>/dev/null || echo 'NO .env'"))
-print("=== PORT 8083 ===")
-print(run("ss -tlnp | grep 8083 || echo 'Dashboard not serving'"))
-ssh.close()
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from config.settings import VPS_HOST, VPS_PASSWORD, VPS_USER
+from core.ssh_client import VPSClient
+
+AUDIT_COMMANDS: list[tuple[str, str]] = [
+    ("SCRIPTS", "ls -la /root/scripts/"),
+    ("TRADING-INFRA", "ls -la /root/trading-infra/ 2>/dev/null || echo 'NO DIR'"),
+    ("DATA DIR", "ls -la /root/data/ 2>/dev/null || echo 'NO DIR'"),
+    ("DASHBOARD", "ls -la /root/dashboard/ 2>/dev/null || echo 'NO DIR'"),
+    ("SERVICES", "systemctl list-units --type=service --state=active | grep -E 'trading|poly|replay|exec|ibit|dash'"),
+    ("TMUX", "tmux list-sessions 2>&1"),
+    ("CRON", "crontab -l"),
+    ("KRAKEN DATA", "ls -lh /root/freqtrade-sniper/user_data/data/kraken/ 2>/dev/null || echo 'NO DATA'"),
+    ("ENV FILE", "cat /root/.env 2>/dev/null || echo 'NO .env'"),
+    ("PORT 8083", "ss -tlnp | grep 8083 || echo 'Dashboard not serving'"),
+]
+
+
+def main() -> None:
+    """Run full system audit on VPS."""
+    with VPSClient(VPS_HOST, VPS_USER, VPS_PASSWORD) as vps:
+        for section, command in AUDIT_COMMANDS:
+            print(f"=== {section} ===")
+            result = vps.run(command)
+            print(result.output)
+            print()
+
+
+if __name__ == "__main__":
+    main()
