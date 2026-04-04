@@ -33,6 +33,12 @@ class TestComputeRSI:
         rsi = compute_rsi(prices, period=14)
         assert 0 <= rsi <= 100
 
+    def test_rsi_flat_prices_not_nan(self) -> None:
+        """Flat prices should return 50 (neutral), not NaN."""
+        prices = pd.Series([100.0] * 30)
+        rsi = compute_rsi(prices, period=14)
+        assert rsi == 50.0
+
 
 class TestComputeEMA:
     """Tests for exponential moving average."""
