@@ -1,24 +1,34 @@
-# Freqtrade Bot Health Check
-# Checks 3 Docker containers running algorithmic trading bots
-# github.com/Preston2012/trading-toolkit
+"""Freqtrade bot health checker.
+
+Connects to VPS and checks Docker container status,
+recent logs, and memory usage for all trading bots.
+"""
 
 import os
-import os
-import paramiko, time
-ssh = paramiko.SSHClient()
-ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-ssh.connect(os.environ["VPS_HOST"], username=os.environ.get("VPS_USER", "root"), password=os.environ["VPS_PASSWORD"])
-def run(cmd):
-    stdin, stdout, stderr = ssh.exec_command(cmd, timeout=30)
-    return stdout.read().decode() + stderr.read().decode()
-print("=== CONTAINER STATUS ===")
-print(run("docker ps -a"))
-print("=== SNIPER (NFIX7) ===")
-print(run("docker logs ft-sniper --tail 15 2>&1"))
-print("=== HUNTER (NFIX4) ===")
-print(run("docker logs ft-hunter --tail 10 2>&1"))
-print("=== SCOUT (NFIX5) ===")
-print(run("docker logs ft-scout --tail 10 2>&1"))
-print("=== MEMORY ===")
-print(run("free -m"))
-ssh.close()
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from config.settings import BOTS, VPS_HOST, VPS_PASSWORD, VPS_USER
+from core.ssh_client import VPSClient
+
+
+def main() -> None:
+    """Check health of all Freqtrade bot containers."""
+    with VPSClient(VPS_HOST, VPS_USER, VPS_PASSWORD) as vps:
+        print("=== CONTAINER STATUS ===")
+        result = vps.run("docker ps -a")
+        print(result.stdout)
+
+        for bot in BOTS:
+            print(f"\n=== {bot['name'].upper()} ({bot['container']}) ===")
+            result = vps.run(f"docker logs {bot['container']} --tail 15 2>&1")
+            print(result.output)
+
+        print("\n=== MEMORY ===")
+        result = vps.run("free -m")
+        print(result.stdout)
+
+
+if __name__ == "__main__":
+    main()

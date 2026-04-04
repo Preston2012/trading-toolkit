@@ -21,32 +21,68 @@ Manages a production trading infrastructure running on a Hetzner VPS:
 
 ---
 
+## Architecture
+
+```
+trading-toolkit/
+    config/
+        settings.py          # Centralized env var access, bot/service definitions
+        thesis_maps.py       # 12-ETF macro thesis map + news keyword-to-trade map
+    core/
+        ssh_client.py        # VPSClient: shared SSH/SFTP with retry + context manager
+        telegram.py          # Telegram Bot API alert helper
+        technicals.py        # RSI 14, EMA 20/50, support/resistance, hist. volatility
+        position_sizing.py   # 3% max risk sizing, staged exit ladder generation
+        grading.py           # Option scoring: OI, volume, premium, DTE -> A/B/C/D
+        news_scanner.py      # Finnhub headline scanner with hash-based dedup
+    scripts/
+        scan_options.py      # Main scanner entry point (imports core/, runs on schedule)
+        check_bots.py        # Health check for 3 Freqtrade Docker containers
+        full_audit.py        # Full VPS system audit (services, cron, memory, data)
+        start_services.py    # Start and verify all 14 systemd services
+        quick_trades.py      # Pull recent trades from Freqtrade REST APIs
+        check_scanner.py     # Check scanner logs and scan result data
+    tests/
+        test_technicals.py   # RSI, EMA, volatility calculations
+        test_position_sizing.py  # Position sizing and exit ladder logic
+        test_grading.py      # Option grading and scoring thresholds
+```
+
+---
+
+## Options Scanner
+
+The core of this toolkit. Thesis-driven options scanner that:
+
+- Maintains **macro thesis maps for 12 ETFs** (XLE, JETS, TLT, XBI, KRE, GDX, IBIT, SMH, XLF, SPY, XOP, ITA) with call/put theses, catalysts, and per-ticker filtering parameters
+- Runs **RSI 14, EMA 20/50 trend detection**, support/resistance from 20-day range, and 30-day historical volatility via yfinance
+- Filters for **cheap OTM options** ($0.02-$1.50 premium, 3-15% OTM depending on ticker beta)
+- **Grades contracts A through D** based on open interest, volume, premium sweetness, and days to expiry
+- Calculates **position sizes** with 3% max risk per play and automatic exit ladders:
+  - 8+ contracts: 4 tranches (recover basis / lock profit / let run / moon bag)
+  - 4-7 contracts: 3 tranches
+  - Under 4: 2 tranches
+  - Kill price at 50% premium loss
+- Scans **Finnhub news** for actionable headlines with hash-based dedup (no repeat alerts)
+- Sends **HTML-formatted Telegram alerts** with full technical context
+
+### Scanner Schedule
+
+- Full options scan: every 2 hours
+- News headline scan: every 15 minutes
+
+---
+
 ## Scripts
 
-### `scripts/options_scanner.py` (452 lines)
-The crown jewel. Thesis-driven options scanner that:
-- Maintains macro thesis maps for 12 ETFs (XLE, JETS, TLT, XBI, KRE, GDX, IBIT, SMH, XLF, SPY, XOP, ITA)
-- Runs RSI, EMA trend, support/resistance, and historical volatility analysis
-- Filters for cheap OTM options ($0.02-$1.50 premium range)
-- Calculates position sizes with 3% max risk per play
-- Generates staged exit ladders (recover basis -> lock profit -> moon bag)
-- Scans Finnhub for Trump/Houthi/Iran headlines with hash dedup
-- Sends formatted Telegram alerts with technical context
-
-### `scripts/check_bots.py`
-Health check for 3 Freqtrade Docker containers. Pulls container status, recent logs, and memory usage via SSH.
-
-### `scripts/full_audit.py`
-Full VPS system audit: scripts directory, data files, active services, tmux sessions, cron jobs, Kraken data, environment, and dashboard status.
-
-### `scripts/start_all.py`
-Service orchestrator. Starts all 14 systemd services, verifies each is active, reports Docker container count and memory usage.
-
-### `scripts/quick_trades.py`
-Pulls recent trades from 3 Freqtrade bot REST APIs. Shows trade count, pairs, open dates, and profit status.
-
-### `scripts/check_scanner.py`
-Checks options scanner output logs, scan results JSON, and Trump headline dedup data.
+| Script | What It Does |
+|--------|-------------|
+| `scan_options.py` | Full thesis-based options scanner with Telegram alerts |
+| `check_bots.py` | Health check for 3 Freqtrade Docker containers |
+| `full_audit.py` | Complete VPS system audit |
+| `start_services.py` | Start and verify all 14 systemd services |
+| `quick_trades.py` | Pull recent trades from bot REST APIs |
+| `check_scanner.py` | Check scanner logs and data files |
 
 ---
 
@@ -61,11 +97,10 @@ Hetzner VPS (Ubuntu 24.04, 4GB RAM)
     |     +-- ft-scout  (NFIX5, port 8082)
     |
     +-- 14 systemd services
-          +-- options-scanner (v5, thesis-based)
+          +-- options-scanner (thesis-based)
           +-- polymarket-scanner
           +-- arb-bridge (Polymarket-to-options)
           +-- rss-scraper
-          +-- trump-signal (hash dedup)
           +-- position-tracker
           +-- morning-briefing (8:30 AM ET)
           +-- execution-monitor
@@ -89,14 +124,21 @@ Hetzner VPS (Ubuntu 24.04, 4GB RAM)
 | VPS | Hetzner (Ubuntu 24.04, Docker) |
 | Remote Mgmt | Paramiko (SSH/SFTP) |
 | Services | systemd (14 units) |
+| Testing | pytest |
 
 ## Setup
 
 ```bash
 cp .env.example .env
 # Fill in your credentials
-pip install paramiko requests yfinance schedule
-python scripts/options_scanner.py
+pip install -r requirements.txt
+python scripts/scan_options.py
+```
+
+## Testing
+
+```bash
+python -m pytest tests/ -v
 ```
 
 ## Environment Variables
@@ -108,5 +150,6 @@ See `.env.example` for all required variables. Never commit real credentials.
 ## Related
 
 - **[baseline-showcase](https://github.com/Preston2012/baseline-showcase)** - Political intelligence platform (Flutter/Supabase/4 AI providers)
+- **[ai-council](https://github.com/Preston2012/ai-council)** - Multi-model AI orchestration methodology
 - **Portfolio:** [baseline.marketing/built](https://baseline.marketing/built)
 - **Contact:** Droiddna2013@gmail.com

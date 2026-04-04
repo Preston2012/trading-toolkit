@@ -1,18 +1,40 @@
-# Scanner Log Checker
-# Checks options scanner output, Trump signal data, and scan results
-# github.com/Preston2012/trading-toolkit
+"""Scanner log checker.
+
+Checks options scanner output logs, scan results,
+and news headline dedup data on the VPS.
+"""
 
 import os
-import os
-import paramiko, time
-ssh = paramiko.SSHClient()
-ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-ssh.connect(os.environ["VPS_HOST"], username=os.environ.get("VPS_USER", "root"), password=os.environ["VPS_PASSWORD"])
-time.sleep(30)
-print("=== LOG ===")
-print(ssh.exec_command("tail -15 /root/logs/options-scanner.log 2>/dev/null")[1].read().decode())
-print("=== DATA ===")
-print(ssh.exec_command("cat /root/data/options_scan.json 2>/dev/null | head -80")[1].read().decode())
-print("=== TRUMP SEEN ===")
-print(ssh.exec_command("cat /root/data/seen_headlines.json 2>/dev/null | head -5")[1].read().decode())
-ssh.close()
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from config.settings import (
+    SCAN_RESULTS_FILE,
+    SCANNER_LOG_FILE,
+    SEEN_HEADLINES_FILE,
+    VPS_HOST,
+    VPS_PASSWORD,
+    VPS_USER,
+)
+from core.ssh_client import VPSClient
+
+
+def main() -> None:
+    """Check scanner logs and data files."""
+    with VPSClient(VPS_HOST, VPS_USER, VPS_PASSWORD) as vps:
+        print("=== SCANNER LOG ===")
+        result = vps.run(f"tail -15 {SCANNER_LOG_FILE} 2>/dev/null")
+        print(result.output)
+
+        print("\n=== SCAN RESULTS ===")
+        result = vps.run(f"cat {SCAN_RESULTS_FILE} 2>/dev/null | head -80")
+        print(result.output)
+
+        print("\n=== SEEN HEADLINES ===")
+        result = vps.run(f"cat {SEEN_HEADLINES_FILE} 2>/dev/null | head -5")
+        print(result.output)
+
+
+if __name__ == "__main__":
+    main()
