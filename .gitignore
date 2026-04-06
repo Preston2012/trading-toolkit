@@ -1,5 +1,8 @@
 __pycache__/
 *.pyc
+*.db
+*.sqlite
+.pytest_cache/
 alert_state.json
 regime_state.json
 temp_blacklist.json
