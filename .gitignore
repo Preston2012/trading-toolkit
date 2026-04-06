@@ -4,3 +4,12 @@ alert_state.json
 regime_state.json
 temp_blacklist.json
 .env
+replacements.txt
+add_envfile.sh
+check_logs.sh
+restart_all.sh
+fix_docker_ports.sh
+harden_ssh.sh
+setup_firewall_service.sh
+docker_firewall.sh
+scrub_creds.sh
