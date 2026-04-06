@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
-import yfinance as yf
-import ccxt, json, time, os, csv, requests, schedule
+import csv
+import json
+import os
+import time
 from datetime import datetime
 
-TG_TOKEN = "REDACTED_TG_TOKEN"
-TG_CHAT = "REDACTED_TG_CHAT"
+import ccxt
+import requests
+import schedule
+import yfinance as yf
+
+from core.telegram import send_tg
+
 CSV_PATH = "/root/data/ibit_tracking.csv"
 
-def send_tg(msg):
-    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
-    requests.post(url, json={"chat_id": TG_CHAT, "text": msg, "parse_mode": "HTML"})
 
 def track_ibit():
     try:
@@ -17,25 +21,22 @@ def track_ibit():
         btc_kr = ccxt.kraken().fetch_ticker("BTC/USDT")
         ibit_price = ibit.info.get("regularMarketPrice", 0)
         btc_price = btc_kr["last"]
-        wti_t = yf.Ticker("CL=F")
-        wti = wti_t.info.get("regularMarketPrice", 0)
-        xle_t = yf.Ticker("XLE")
-        xle = xle_t.info.get("regularMarketPrice", 0)
-        jets_t = yf.Ticker("JETS")
-        jets = jets_t.info.get("regularMarketPrice", 0)
-        vix_t = yf.Ticker("^VIX")
-        vix = vix_t.info.get("regularMarketPrice", 0)
+        wti = yf.Ticker("CL=F").info.get("regularMarketPrice", 0)
+        xle = yf.Ticker("XLE").info.get("regularMarketPrice", 0)
+        jets = yf.Ticker("JETS").info.get("regularMarketPrice", 0)
+        vix = yf.Ticker("^VIX").info.get("regularMarketPrice", 0)
         row = [datetime.utcnow().isoformat(), ibit_price, btc_price, wti, xle, jets, vix]
         exists = os.path.exists(CSV_PATH)
         with open(CSV_PATH, "a") as f:
             w = csv.writer(f)
             if not exists:
-                w.writerow(["timestamp","ibit","btc","wti","xle","jets","vix"])
+                w.writerow(["timestamp", "ibit", "btc", "wti", "xle", "jets", "vix"])
             w.writerow(row)
         return ibit_price, btc_price, wti, xle, jets, vix
     except Exception as e:
         print(f"IBIT track error: {e}")
-        return 0,0,0,0,0,0
+        return 0, 0, 0, 0, 0, 0
+
 
 def daily_report():
     ibit, btc, wti, xle, jets, vix = track_ibit()
@@ -51,6 +52,7 @@ VIX: {vix:.1f} | BTC: ${btc:,.0f} | IBIT: ${ibit:.2f}
 <b>REGIME:</b> {regime}
 <b>XLE POSITION:</b> 26x $68C 4/17"""
     send_tg(msg)
+
 
 if __name__ == "__main__":
     print("IBIT monitor started")

@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
-import ccxt
 import json
-import time
 import os
-import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 
-TG_TOKEN = os.environ.get("TG_TOKEN", "")
-TG_CHAT_ID = os.environ.get("TG_CHAT_ID", "")
+import ccxt
+import requests
+
+from core.telegram import send_tg
+
 STATE_FILE = "/root/scripts/regime_state.json"
 
-def send_telegram(msg):
-    if TG_TOKEN and TG_CHAT_ID:
-        url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
-        requests.post(url, json={"chat_id": TG_CHAT_ID, "text": msg, "parse_mode": "HTML"})
 
 def get_btc_data():
     kraken = ccxt.kraken()
@@ -21,9 +17,10 @@ def get_btc_data():
     closes = [c[4] for c in ohlcv]
     current = closes[-1]
     sma50 = sum(closes[-50:]) / min(len(closes), 50)
-    returns = [(closes[i] - closes[i-1]) / closes[i-1] for i in range(1, len(closes))]
-    vol20 = (sum(r**2 for r in returns[-20:]) / 20) ** 0.5 * (365**0.5)
+    returns = [(closes[i] - closes[i - 1]) / closes[i - 1] for i in range(1, len(closes))]
+    vol20 = (sum(r ** 2 for r in returns[-20:]) / 20) ** 0.5 * (365 ** 0.5)
     return current, sma50, vol20
+
 
 def get_regime():
     try:
@@ -37,8 +34,9 @@ def get_regime():
         else:
             regime = "NEUTRAL"
         return regime, price, sma50, vol
-    except Exception as e:
+    except Exception:
         return "NEUTRAL", 0, 0, 0
+
 
 def main():
     regime, price, sma50, vol = get_regime()
@@ -53,10 +51,11 @@ def main():
         json.dump(state, f)
     if regime != prev_regime:
         msg = f"<b>REGIME CHANGE: {regime}</b>\nBTC: ${price:,.0f}\n50-SMA: ${sma50:,.0f}\nVol: {vol:.0%}"
-        send_telegram(msg)
+        send_tg(msg)
         print(f"REGIME CHANGE: {regime}")
     else:
         print(f"Regime: {regime} (no change)")
+
 
 if __name__ == "__main__":
     main()

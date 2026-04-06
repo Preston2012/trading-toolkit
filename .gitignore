@@ -3,3 +3,4 @@ __pycache__/
 alert_state.json
 regime_state.json
 temp_blacklist.json
+.env

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-import requests, json, time, os, schedule
+import json
+import os
+import time
 
-TG_TOKEN = "REDACTED_TG_TOKEN"
-TG_CHAT = "REDACTED_TG_CHAT"
+import requests
+import schedule
 
-def send_tg(msg):
-    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
-    requests.post(url, json={"chat_id": TG_CHAT, "text": msg, "parse_mode": "HTML"})
+from core.telegram import send_tg
+
 
 def scan_polymarket():
     try:
@@ -41,6 +42,7 @@ def scan_polymarket():
             json.dump(prev, f)
     except Exception as e:
         print(f"Polymarket error: {e}")
+
 
 if __name__ == "__main__":
     print("Polymarket scanner started")

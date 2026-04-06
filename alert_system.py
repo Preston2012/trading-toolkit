@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
-import os, json, time, requests, schedule
+import json
+import os
+import time
 from datetime import datetime
 
-TG_TOKEN = os.environ.get("TG_TOKEN", "")
+import requests
+import schedule
+
+from core.telegram import send_tg
+
 TG_CRITICAL = os.environ.get("TG_CRITICAL", "")
 TG_DAILY = os.environ.get("TG_DAILY", "")
 FINNHUB_KEY = os.environ.get("FINNHUB_KEY", "")
 
-def send_tg(chat_id, msg):
-    if TG_TOKEN and chat_id:
-        url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
-        requests.post(url, json={"chat_id": chat_id, "text": msg, "parse_mode": "HTML"})
+
+def alert(chat_id, msg):
+    """Send to a specific channel."""
+    send_tg(msg, chat_id=chat_id)
+
 
 def check_oil_prices():
     try:
@@ -20,12 +27,15 @@ def check_oil_prices():
         xle = yf.Ticker("XLE").info.get("regularMarketPrice", 0)
         jets = yf.Ticker("JETS").info.get("regularMarketPrice", 0)
         vix = yf.Ticker("^VIX").info.get("regularMarketPrice", 0)
-        levels = {"WTI": [(105,"$105"),(110,"$110"),(115,"$115"),(120,"$120")],
-                  "XLE": [(65,"$65"),(68,"$68"),(70,"$70"),(73,"$73"),(75,"$75")]}
+        levels = {
+            "WTI": [(105, "$105"), (110, "$110"), (115, "$115"), (120, "$120")],
+            "XLE": [(65, "$65"), (68, "$68"), (70, "$70"), (73, "$73"), (75, "$75")],
+        }
         state_file = "/root/scripts/alert_state.json"
         prev = {}
         if os.path.exists(state_file):
-            with open(state_file) as f: prev = json.load(f)
+            with open(state_file) as f:
+                prev = json.load(f)
         alerts = []
         if wti > 0:
             for lvl, name in levels.get("WTI", []):
@@ -45,13 +55,15 @@ def check_oil_prices():
         if vix > 35 and not prev.get("VIX_35"):
             alerts.append(f"VIX above 35! Now {vix:.1f}")
             prev["VIX_35"] = True
-        with open(state_file, "w") as f: json.dump(prev, f)
+        with open(state_file, "w") as f:
+            json.dump(prev, f)
         for a in alerts:
-            send_tg(TG_CRITICAL, f"🔴 {a}")
+            alert(TG_CRITICAL, f"🔴 {a}")
         return wti, brent, xle, jets, vix
     except Exception as e:
         print(f"Price check error: {e}")
-        return 0,0,0,0,0
+        return 0, 0, 0, 0, 0
+
 
 def check_polymarket():
     try:
@@ -66,20 +78,22 @@ def check_polymarket():
     except Exception as e:
         print(f"Polymarket error: {e}")
 
+
 def check_news():
     try:
         import finnhub
         client = finnhub.Client(api_key=FINNHUB_KEY)
-        news = client.general_news('general', min_id=0)
+        news = client.general_news("general", min_id=0)
         keywords = ["ceasefire", "hormuz", "houthi", "kharg", "iran deal", "iran war"]
         for n in news[:20]:
             headline = n.get("headline", "").lower()
             for kw in keywords:
                 if kw in headline:
-                    send_tg(TG_CRITICAL, f"📰 {n.get('headline','')}\n{n.get('url','')}")
+                    alert(TG_CRITICAL, f"📰 {n.get('headline', '')}\n{n.get('url', '')}")
                     break
     except Exception as e:
         print(f"News error: {e}")
+
 
 def daily_report():
     wti, brent, xle, jets, vix = check_oil_prices()
@@ -100,8 +114,9 @@ VIX: {vix:.1f} | BTC: ${btc:,.0f}
 
 <b>XLE POSITION:</b>
 26x $68C 4/17 | House money"""
-    send_tg(TG_DAILY, report)
+    alert(TG_DAILY, report)
     print("Daily report sent!")
+
 
 def run_alerts():
     print(f"Alert system started at {datetime.utcnow()}")
@@ -113,6 +128,7 @@ def run_alerts():
     while True:
         schedule.run_pending()
         time.sleep(30)
+
 
 if __name__ == "__main__":
     run_alerts()

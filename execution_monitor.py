@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
-import ccxt, json, time, os, schedule, requests
-from collections import defaultdict
+import json
+import os
+import time
 
-TG_TOKEN = "REDACTED_TG_TOKEN"
-TG_CHAT = "REDACTED_TG_CHAT"
+import ccxt
+import requests
+import schedule
+
+from core.telegram import send_tg
+
 SPREAD_FILE = "/root/data/spread_history.json"
 BLACKLIST_FILE = "/root/scripts/temp_blacklist.json"
 
-def send_tg(msg):
-    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
-    requests.post(url, json={"chat_id": TG_CHAT, "text": msg, "parse_mode": "HTML"})
 
 def check_spreads():
     try:
         kraken = ccxt.kraken()
-        pairs = ["BTC/USDT","ETH/USDT","SOL/USDT","XRP/USDT","DOGE/USDT","LTC/USDT","LINK/USDT","ADA/USDT","AVAX/USDT","BNB/USDT"]
+        pairs = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT", "DOGE/USDT",
+                 "LTC/USDT", "LINK/USDT", "ADA/USDT", "AVAX/USDT", "BNB/USDT"]
         history = {}
         if os.path.exists(SPREAD_FILE):
             with open(SPREAD_FILE) as f:
@@ -33,8 +36,7 @@ def check_spreads():
                         avg = sum(h) / len(h)
                         if spread > avg * 2:
                             blacklist.append(pair)
-                            # send_tg(f"<b>SPREAD ALERT</b>\n{pair} spread {spread:.4%} > 2x avg {avg:.4%}\nTemporarily blacklisted")
-            except:
+            except Exception:
                 pass
         with open(SPREAD_FILE, "w") as f:
             json.dump(history, f)
@@ -42,6 +44,7 @@ def check_spreads():
             json.dump(blacklist, f)
     except Exception as e:
         print(f"Spread check error: {e}")
+
 
 if __name__ == "__main__":
     print("Execution monitor started")
