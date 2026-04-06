@@ -3,9 +3,11 @@ import sqlite3, json, os, time
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from datetime import datetime
 
-BOTS = [("Sniper","NFIX7","/root/freqtrade-sniper/user_data/tradesv3.sqlite"),
-        ("Hunter","NFIX4","/root/freqtrade-hunter/user_data/tradesv3.sqlite"),
-        ("Scout","NFIX5","/root/freqtrade-scout/user_data/tradesv3.sqlite")]
+from config.settings import BOTS as _BOT_CONFIGS
+
+# Build (name, strategy, db_path) tuples from centralized config
+BOTS = [(b["name"], b["container"], f"/root/freqtrade-{b['container'].split('-')[-1]}/user_data/tradesv3.sqlite")
+        for b in _BOT_CONFIGS]
 HTML_PATH = "/root/dashboard/index.html"
 os.makedirs("/root/dashboard", exist_ok=True)
 

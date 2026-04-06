@@ -9,11 +9,13 @@ import schedule
 
 from core.telegram import send_tg
 
-BOTS = [
-    ("Sniper", "NFIX7", "/root/freqtrade-sniper/user_data/tradesv3.sqlite", 8080),
-    ("Hunter", "NFIX4", "/root/freqtrade-hunter/user_data/tradesv3.sqlite", 8081),
-    ("Scout", "NFIX5", "/root/freqtrade-scout/user_data/tradesv3.sqlite", 8082),
-]
+from config.settings import BOTS as _BOT_CONFIGS
+
+# Build (name, strategy, db_path, port) tuples from centralized config
+BOTS = [(b["name"], b["container"],
+         f"/root/freqtrade-{b['container'].split('-')[-1]}/user_data/tradesv3.sqlite",
+         b["port"])
+        for b in _BOT_CONFIGS]
 LAST_TRADE_FILE = "/root/data/last_trade_ids.json"
 FT_USER = os.environ.get("FT_USER", "")
 FT_PASS = os.environ.get("FT_PASS", "")

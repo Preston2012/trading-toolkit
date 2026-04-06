@@ -16,3 +16,5 @@ harden_ssh.sh
 setup_firewall_service.sh
 docker_firewall.sh
 scrub_creds.sh
+copy_data.sh
+download_trades.sh

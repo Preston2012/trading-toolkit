@@ -41,17 +41,11 @@ def control_bots():
     if regime == prev:
         return
     if regime == "RISK_OFF":
-        docker_cmd("cd /root/freqtrade-hunter && docker-compose stop")
-        docker_cmd("cd /root/freqtrade-scout && docker-compose stop")
-        send_tg(f"<b>REGIME CONTROLLER</b>\nRISK_OFF: Stopped Hunter + Scout\nOnly Sniper (conservative) running")
-    elif regime == "RISK_ON":
-        docker_cmd("cd /root/freqtrade-hunter && docker-compose start")
-        docker_cmd("cd /root/freqtrade-scout && docker-compose start")
-        send_tg(f"<b>REGIME CONTROLLER</b>\nRISK_ON: All 3 bots active")
-    elif regime == "NEUTRAL":
-        docker_cmd("cd /root/freqtrade-hunter && docker-compose start")
-        docker_cmd("cd /root/freqtrade-scout && docker-compose start")
-        send_tg(f"<b>REGIME CONTROLLER</b>\nNEUTRAL: All 3 bots active (normal mode)")
+        docker_cmd("cd /root/freqtrade-sniper && docker-compose stop")
+        send_tg("<b>REGIME CONTROLLER</b>\nRISK_OFF: Stopped Sniper — no bots running")
+    elif regime in ("RISK_ON", "NEUTRAL"):
+        docker_cmd("cd /root/freqtrade-sniper && docker-compose start")
+        send_tg(f"<b>REGIME CONTROLLER</b>\n{regime}: Sniper active")
     save_action(regime)
 
 

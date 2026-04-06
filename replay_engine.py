@@ -2,10 +2,13 @@
 import sqlite3, json, os, time, schedule
 from datetime import datetime
 
+from config.settings import BOTS as _BOT_CONFIGS
+
 DB_PATH = "/root/data/trade_replay.db"
-BOTS = [("sniper", "/root/freqtrade-sniper/user_data/tradesv3.sqlite"),
-        ("hunter", "/root/freqtrade-hunter/user_data/tradesv3.sqlite"),
-        ("scout", "/root/freqtrade-scout/user_data/tradesv3.sqlite")]
+# Build (name, db_path) tuples from centralized config
+BOTS = [(b["name"].lower(),
+         f"/root/freqtrade-{b['container'].split('-')[-1]}/user_data/tradesv3.sqlite")
+        for b in _BOT_CONFIGS]
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)

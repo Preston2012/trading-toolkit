@@ -60,13 +60,3 @@ for base, quote in PAIRS:
             print(f"  No data for {fname}")
 
 print("Backfill complete!")
-print("Copying to hunter and scout...")
-import shutil
-src = DATA_DIR
-for bot in ["hunter", "scout"]:
-    dst = f"/root/freqtrade-{bot}/user_data/data/kraken"
-    os.makedirs(dst, exist_ok=True)
-    for f in os.listdir(src):
-        if f.endswith(".json"):
-            shutil.copy2(os.path.join(src,f), os.path.join(dst,f))
-print("Data copied to all bots!")
