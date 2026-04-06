@@ -35,11 +35,9 @@ TRADE_FUND: float = float(os.environ.get("TRADE_FUND", "3000"))
 FT_USER: str = os.environ.get("FT_USER", "")
 FT_PASS: str = os.environ.get("FT_PASS", "")
 
-# Bot definitions
+# Bot definitions (Hunter + Scout decommissioned; add new bots here)
 BOTS: list[BotConfig] = [
     {"name": "Sniper", "port": 8080, "container": "ft-sniper"},
-    {"name": "Hunter", "port": 8081, "container": "ft-hunter"},
-    {"name": "Scout", "port": 8082, "container": "ft-scout"},
 ]
 
 # Services started by start_services.py
@@ -73,3 +71,11 @@ ALL_SERVICES: list[str] = [
 SEEN_HEADLINES_FILE: str = "/root/data/seen_headlines.json"
 SCAN_RESULTS_FILE: str = "/root/data/options_scan.json"
 SCANNER_LOG_FILE: str = "/root/logs/options-scanner.log"
+
+# Adaptive Brain
+BRAIN_DB_PATH: str = os.environ.get("BRAIN_DB_PATH", "/root/data/brain.db")
+BRAIN_MIN_WIN_RATE: float = float(os.environ.get("BRAIN_MIN_WIN_RATE", "0.45"))
+BRAIN_MIN_PROFIT_FACTOR: float = float(os.environ.get("BRAIN_MIN_PROFIT_FACTOR", "1.2"))
+BRAIN_MAX_CONSEC_LOSSES: int = int(os.environ.get("BRAIN_MAX_CONSEC_LOSSES", "5"))
+BRAIN_LOOKBACK_DAYS: int = int(os.environ.get("BRAIN_LOOKBACK_DAYS", "7"))
+BRAIN_DRY_RUN: bool = os.environ.get("BRAIN_DRY_RUN", "true").lower() == "true"
